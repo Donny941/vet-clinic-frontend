@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { animalsAPI } from "../services/api";
 import Navbar from "./Navbar";
-
+//STO IN PAUSA, QUESTO REACT MI HA DISTRUTTO NON RICORDO NULLA MA IN QUALCHE MODO SONO RIUSCITO A FARE L'UPDATE MA BISOGNA AGGIUSTARE I TASTINI NEL FRONT
 function Dashboard() {
   const [animals, setAnimals] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -21,6 +21,20 @@ function Dashboard() {
     ownerTaxCode: "",
   });
   const [submitting, setSubmitting] = useState(false);
+  // Stati solo per la modale di modifica
+  const [editingAnimal, setEditingAnimal] = useState(null); // animale selezionato
+  const [editFormData, setEditFormData] = useState({
+    name: "",
+    type: "",
+    coatColor: "",
+    birthDate: "",
+    hasMicrochip: false,
+    microchipNumber: "",
+    ownerName: "",
+    ownerSurname: "",
+    ownerTaxCode: "",
+  });
+  const [editSubmitting, setEditSubmitting] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -60,7 +74,46 @@ function Dashboard() {
       console.error(err);
     }
   };
+  //serve per l'edit
+  const handleEditClick = (animal) => {
+    if (!animal) return; // protezione, evita errori se animal è undefined
 
+    // memorizza l'animale da modificare
+    setEditingAnimal(animal);
+
+    setEditFormData({
+      name: animal.name || "",
+      type: animal.type || "",
+      coatColor: animal.coatColor || "",
+      birthDate: animal.birthDate || "",
+      hasMicrochip: animal.hasMicrochip || false,
+      microchipNumber: animal.microchipNumber || "",
+      ownerName: animal.ownerName || "",
+      ownerSurname: animal.ownerSurname || "",
+      ownerTaxCode: animal.ownerTaxCode || "",
+    });
+  };
+  const handleUpdate = async (id, updateAnimalDto) => {
+    try {
+      const updatedAnimal = await animalsAPI.update(id, updateAnimalDto);
+
+      if (!updatedAnimal) {
+        alert("Errore: il backend non ha restituito l'animale aggiornato.");
+        return;
+      }
+
+      setAnimals((prevAnimals) => prevAnimals.map((a) => (a.id === id ? updatedAnimal : a)));
+
+      alert(`${updatedAnimal.name} aggiornato con successo!`);
+    } catch (err) {
+      console.error(err);
+      if (err.response) {
+        alert(`Errore nell'aggiornamento: ${err.response.data?.message || err.response.status}`);
+      } else {
+        alert("Errore di rete nell'aggiornamento");
+      }
+    }
+  };
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
@@ -195,6 +248,9 @@ function Dashboard() {
                           <small className="text-muted">{new Date(animal.registrationDate).toLocaleDateString("it-IT")}</small>
                         </td>
                         <td className="text-center">
+                          <button onClick={() => handleEditClick(animal)} className="btn btn-sm btn-outline-primary me-2" title="Modifica">
+                            ✏️
+                          </button>
                           <button onClick={() => handleDelete(animal.id, animal.name)} className="btn btn-sm btn-outline-danger" title="Elimina">
                             🗑️
                           </button>
@@ -220,7 +276,13 @@ function Dashboard() {
                   <button type="button" className="btn-close btn-close-white" onClick={() => setShowModal(false)}></button>
                 </div>
                 <form onSubmit={handleSubmit}>
-                  <div className="modal-body">
+                  <div
+                    className="modal-body"
+                    style={{
+                      maxHeight: "70vh",
+                      overflowY: "auto",
+                    }}
+                  >
                     <div className="row g-3">
                       {/* Dati Animale */}
                       <div className="col-12">
@@ -339,6 +401,184 @@ function Dashboard() {
             </div>
           </div>
         </>
+      )}
+
+      {editingAnimal && (
+        <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: "rgba(0,0,0,0.5)" }}>
+          <div className="modal-dialog modal-lg modal-dialog-scrollable">
+            <div className="modal-content">
+              <div className="modal-header bg-warning text-white">
+                <h5 className="modal-title">✏️ Modifica {editingAnimal.name}</h5>
+                <button type="button" className="btn-close btn-close-white" onClick={() => setEditingAnimal(null)}></button>
+              </div>
+
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setEditSubmitting(true);
+                  try {
+                    await handleUpdate(editingAnimal.id, editFormData); // usa la tua funzione esistente
+                    setEditingAnimal(null); // chiudi la modale
+                  } catch (err) {
+                    console.error(err);
+                  } finally {
+                    setEditSubmitting(false);
+                  }
+                }}
+              >
+                <div className="modal-body" style={{ maxHeight: "70vh", overflowY: "auto" }}>
+                  <div className="row g-3">
+                    {/* Dati Animale */}
+                    <div className="col-12">
+                      <h6 className="border-bottom pb-2">🐾 Dati Animale</h6>
+                    </div>
+
+                    <div className="col-md-6">
+                      <label className="form-label">Nome *</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        name="name"
+                        value={editFormData.name}
+                        onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                        required
+                      />
+                    </div>
+
+                    <div className="col-md-6">
+                      <label className="form-label">Tipo *</label>
+                      <select
+                        className="form-select"
+                        name="type"
+                        value={editFormData.type}
+                        onChange={(e) => setEditFormData({ ...editFormData, type: e.target.value })}
+                        required
+                      >
+                        <option value="">Seleziona tipo</option>
+                        <option value="Cane">Cane</option>
+                        <option value="Gatto">Gatto</option>
+                        <option value="Coniglio">Coniglio</option>
+                        <option value="Uccello">Uccello</option>
+                        <option value="Altro">Altro</option>
+                      </select>
+                    </div>
+
+                    <div className="col-md-6">
+                      <label className="form-label">Colore Mantello</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        name="coatColor"
+                        value={editFormData.coatColor}
+                        onChange={(e) => setEditFormData({ ...editFormData, coatColor: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="col-md-6">
+                      <label className="form-label">Data di Nascita</label>
+                      <input
+                        type="date"
+                        className="form-control"
+                        name="birthDate"
+                        value={editFormData.birthDate}
+                        onChange={(e) => setEditFormData({ ...editFormData, birthDate: e.target.value })}
+                      />
+                    </div>
+
+                    {/* Microchip */}
+                    <div className="col-12">
+                      <h6 className="border-bottom pb-2 mt-3">💉 Microchip</h6>
+                    </div>
+                    <div className="col-12">
+                      <div className="form-check">
+                        <input
+                          className="form-check-input"
+                          type="checkbox"
+                          id="hasMicrochip"
+                          name="hasMicrochip"
+                          checked={editFormData.hasMicrochip}
+                          onChange={(e) => setEditFormData({ ...editFormData, hasMicrochip: e.target.checked })}
+                        />
+                        <label className="form-check-label" htmlFor="hasMicrochip">
+                          L'animale ha il microchip
+                        </label>
+                      </div>
+                    </div>
+                    {editFormData.hasMicrochip && (
+                      <div className="col-12">
+                        <label className="form-label">Numero Microchip</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          name="microchipNumber"
+                          value={editFormData.microchipNumber}
+                          onChange={(e) => setEditFormData({ ...editFormData, microchipNumber: e.target.value })}
+                          maxLength="20"
+                        />
+                      </div>
+                    )}
+
+                    {/* Dati Proprietario */}
+                    <div className="col-12">
+                      <h6 className="border-bottom pb-2 mt-3">👤 Dati Proprietario</h6>
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Nome *</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        name="ownerName"
+                        value={editFormData.ownerName}
+                        onChange={(e) => setEditFormData({ ...editFormData, ownerName: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Cognome *</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        name="ownerSurname"
+                        value={editFormData.ownerSurname}
+                        onChange={(e) => setEditFormData({ ...editFormData, ownerSurname: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="col-12">
+                      <label className="form-label">Codice Fiscale *</label>
+                      <input
+                        type="text"
+                        className="form-control text-uppercase"
+                        name="ownerTaxCode"
+                        value={editFormData.ownerTaxCode}
+                        onChange={(e) => setEditFormData({ ...editFormData, ownerTaxCode: e.target.value })}
+                        maxLength="16"
+                        required
+                        style={{ fontFamily: "monospace" }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-secondary" onClick={() => setEditingAnimal(null)} disabled={editSubmitting}>
+                    Annulla
+                  </button>
+                  <button type="submit" className="btn btn-primary" disabled={editSubmitting}>
+                    {editSubmitting ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2"></span>
+                        Salvataggio...
+                      </>
+                    ) : (
+                      "💾 Aggiorna Animale"
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
